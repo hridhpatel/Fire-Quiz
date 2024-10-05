@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest Fire Quiz Game</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            background-color: #e0f7fa;
+            overflow: hidden;
+        }
+
+        #map {
+            height: 80vh;
+            width: 100vw;
+            transition: opacity 1s ease;
+        }
+
+        #quiz-container {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            width: 90%;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #00796b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #004d40;
+        }
+
+        #game-over {
+            display: none;
+            font-size: 2.5em;
+            color: #d32f2f;
+            margin-top: 20vh;
+            animation: fade-in 1s ease-in-out forwards;
+        }
+
+        #final-score {
+            font-weight: bold;
+            font-size: 1.5em;
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="quiz-container" style="display: none;">
+        <div id="question"></div>
+        <div id="options"></div>
+    </div>
+    <div id="game-over">
+        🎉 Game Over! 🎉 <br> Your final score: <span id="final-score"></span>
+        <button id="play-again" onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let activeFires = [];
+        const maxFires = 3; // Maximum number of active fires
+        const fireLocations = [
+            [37.7749, -122.4194], // San Francisco
+            [51.5074, -0.1278], // London
+            [-33.8688, 151.2093], // Sydney
+            [35.6762, 139.6503], // Tokyo
+            [-22.9068, -43.1729], // Rio de Janeiro
+            [55.7558, 37.6173], // Moscow
+            [28.6139, 77.2090], // Delhi
+            [48.8566, 2.3522] // Paris
+        ];
+
+        function addFire() {
+            if (activeFires.length < maxFires) {
+                const [lat, lon] = fireLocations[Math.floor(Math.random() * fireLocations.length)];
+                const fireMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'fire-icon',
+                        html: '<span style="font-size: 40px;">🔥</span>',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(map);
+                activeFires.push(fireMarker);
+            }
+        }
+
+        const questions = [
+            { question: "What should you do if you see hazardous waste?", options: ['A. Leave it', 'B. Collect and recycle', 'C. Set it on fire'], answer: 'B' },
+            { question: "What happens if you leave waste?", options: ['A. Nothing', 'B. It could catch fire', 'C. It improves the area'], answer: 'B' },
+            { question: "How can you prevent forest fires?", options: ['A. Use fireworks', 'B. Start controlled burns', 'C. Ignore fire bans'], answer: 'B' },
+            { question: "What should you do if a fire gets too close?", options: ['A. Stay put', 'B. Call for help', 'C. Run into the fire'], answer: 'B' },
+            { question: "What is the main cause of forest fires?", options: ['A. Lightning', 'B. Pollution', 'C. Animals'], answer: 'A' },
+            { question: "Why is it important to report fires?", options: ['A. To show off', 'B. To help fight them', 'C. It’s not important'], answer: 'B' },
+            { question: "Which of the following can be a fire hazard?", options: ['A. Dry leaves', 'B. Wet ground', 'C. Snow'], answer: 'A' },
+            { question: "What should you do with your campfire?", options: ['A. Leave it unattended', 'B. Put it out completely', 'C. Add more wood'], answer: 'B' },
+            { question: "What is the best way to prevent forest fires?", options: ['A. Avoiding dry areas', 'B. Using fire in safe areas', 'C. Not using fire at all'], answer: 'A' },
+            { question: "Which tool can help prevent fires?", options: ['A. Fire extinguisher', 'B. Water', 'C. Both A and B'], answer: 'C' }
+        ];
+
+        let currentQuestion = 0;
+        let addFireInterval;
+
+        function startGame() {
+            document.getElementById('quiz-container').style.display = 'block';
+            currentQuestion = 0; // Reset question index
+            activeFires = []; // Clear any existing fires
+            
+            // Add initial fires
+            for (let i = 0; i < maxFires; i++) {
+                addFire(); 
+            }
+            
+            addFireInterval = setInterval(() => {
+                addFire();
+            }, 10000); // Add a new fire every 10 seconds
+
+            showQuestion();
+        }
+
+        function showQuestion() {
+            if (currentQuestion < questions.length) {
+                const q = questions[currentQuestion];
+                document.getElementById('question').innerHTML = q.question;
+                document.getElementById('options').innerHTML = q.options.map((opt) => {
+                    return `<button onclick="answerQuestion('${opt.charAt(0)}', '${q.answer}')">${opt}</button>`;
+                }).join('');
+            } else {
+                endGame();
+            }
+        }
+
+        function answerQuestion(answer, correctAnswer) {
+            if (answer === correctAnswer) {
+                extinguishFire();
+            } else {
+                alert('Wrong answer, try again!');
+            }
+        }
+
+        function extinguishFire() {
+            if (activeFires.length > 0) {
+                const fire = activeFires.pop();
+                map.removeLayer(fire);
+            }
+
+            if (activeFires.length === 0) {
+                endGame(); // End game if all fires are extinguished
+            } else {
+                currentQuestion++;
+                showQuestion();
+            }
+        }
+
+        function endGame() {
+            document.getElementById('quiz-container').style.display = 'none';
+            document.getElementById('final-score').innerText = currentQuestion; // Score is based on questions answered
+            clearInterval(addFireInterval); // Stop adding new fires
+
+            // Fade out the map and display the game over message
+            const mapElement = document.getElementById('map');
+            mapElement.style.opacity = 0;
+            setTimeout(() => {
+                document.getElementById('game-over').style.display = 'block';
+            }, 1000);
+        }
+
+        function restartGame() {
+            location.reload(); // Restart the game
+        }
+
+        window.onload = startGame; // Start the game when the window loads
+    </script>
+</body>
+</html>
